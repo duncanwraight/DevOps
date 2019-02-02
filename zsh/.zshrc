@@ -103,15 +103,15 @@ source $ZSH/oh-my-zsh.sh
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 
 alias od="cd ~/Documents/OneDrive\ -\ Home\ Group\ Ltd"
-alias github="cd @/Documents/OneDrive\ -\ Home\ Group\ Ltd/Github"
-alias scr/bash="cd ~/Documents/OneDrive\ -\ Home\ Group\ Ltd/Gitlab/hg-devops/scripts/Bash"
-alias scr/posh="cd ~/Documents/OneDrive\ -\ Home\ Group\ Ltd/Gitlab/hg-devops/scripts/PowerShell"
-alias relnotes="cd ~/Documents/OneDrive\ -\ Home\ Group\ Ltd/Gitlab/hg-devops/release-notes"
-alias srv/nginx="cd ~/Documents/OneDrive\ -\ Home\ Group\ Ltd/Gitlab/hg-devops/services/hg-onprem-nginx-reverse-proxy"
-alias srv/filebeats="cd ~/Documents/OneDrive\ -\ Home\ Group\ Ltd/Gitlab/hg-devops/services/hg-platform-filebeats"
-alias infr/elk="cd ~/Documents/OneDrive\ -\ Home\ Group\ Ltd/Gitlab/hg-devops/infrastructure/elk"
-alias infr/kubernetes="cd ~/Documents/OneDrive\ -\ Home\ Group\ Ltd/Gitlab/hg-devops/infrastructure/kubernetes"
-alias infr/onprem="cd ~/Documents/OneDrive\ -\ Home\ Group\ Ltd/Gitlab/hg-devops/infrastructure/onprem"
+alias github="cd @/Documents/OneDrive\ -\ Github"
+alias scr/bash="cd ~/Documents/OneDrive/Gitlab/hg-devops/scripts/Bash"
+alias scr/posh="cd ~/Documents/OneDrive/Gitlab/hg-devops/scripts/PowerShell"
+alias relnotes="cd ~/Documents/OneDrive/Gitlab/hg-devops/release-notes"
+alias srv/nginx="cd ~/Documents/OneDrive/Gitlab/hg-devops/services/hg-onprem-nginx-reverse-proxy"
+alias srv/filebeats="cd ~/Documents/OneDrive/Gitlab/hg-devops/services/hg-platform-filebeats"
+alias infr/elk="cd ~/Documents/OneDrive/Gitlab/hg-devops/infrastructure/elk"
+alias infr/kubernetes="cd ~/Documents/OneDrive/Gitlab/hg-devops/infrastructure/kubernetes"
+alias infr/onprem="cd ~/Documents/OneDrive/Gitlab/hg-devops/infrastructure/onprem"
 
 # Powerlevel9k custom config
 #POWERLEVEL9K_PROMPT_ADD_NEWLINE='true'
@@ -127,5 +127,5 @@ source /usr/local/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 #echo -e "\033]6;1;bg;blue;brightness;33\a"
 
 # Loading script... says "Lucy is Mint" in an ASCII font (I'm cool)
-source ~/Documents/OneDrive\ -\ Home\ Group\ Ltd/Gitlab/hg-devops/scripts/Bash/test.sh
+source ~/Documents/OneDrive/Gitlab/hg-devops/scripts/Bash/test.sh
 if [ /usr/local/bin/kubectl ]; then source <(kubectl completion zsh); fi
