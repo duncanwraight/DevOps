@@ -1,0 +1,2 @@
+METHOD (OPTIONS|GET|HEAD|POST|PUT|DELETE|TRACE|CONNECT)
+NGINX_ACCESS %{IPORHOST:app.nginx.server_ip} %{USER:app.nginx.remote_user} %{USER:app.nginx.auth} \[%{HTTPDATE:timestamp}\] "(?:%{METHOD:app.req.method} %{NOTSPACE:app.req.destination}(?: HTTP/%{NUMBER:app.nginx.httpversion})?|%{DATA:app.rawOutput})" %{NUMBER:app.req.status} (?:%{NUMBER:app.nginx.body_bytes_sent}|-) "%{DATA:app.nginx.referrer}" "%{DATA:app.nginx.agent}" "(?:%{IPORHOST:app.nginx.client_ip}|%{NOTSPACE:app.nginx.client_ip})"

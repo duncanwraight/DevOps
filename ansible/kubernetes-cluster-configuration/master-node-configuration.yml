@@ -1,0 +1,40 @@
+---
+- hosts: master   
+  remote_user: kubernetes-master
+  become: yes
+  become_method: sudo
+  tasks:
+    - name: Install Docker
+      apt:
+      name: "{{ packages }}"
+      vars:
+        packages:
+          - docker.io
+          - apt-transport-https
+          - openssh-server
+
+    - name: Add apt key for Kubernetes
+      apt_key:
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        state: present
+    
+    - name: Add kubernetes repository
+      apt_repository:
+        repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+        state: present
+
+    - name: Install kubernetes components - kubelet, kubeadm, kubernetes-cni
+      apt:
+      name: "{{ packages }}"
+      vars:
+        packages:
+          - kubelet
+          - kubeadm
+          - kubernetes-cni
+
+    - name: Test Kubernetes installation
+      shell: kubeadm --?
+      register: output
+
+    - debug: 
+        var: output

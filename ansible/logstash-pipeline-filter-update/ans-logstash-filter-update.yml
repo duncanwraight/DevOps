@@ -1,0 +1,86 @@
+---
+# to run this playbook, use the following command (dt/ppt/pr)
+### ansible-playbook logstash-filter-update.yml --extra-vars '{"env":"dt"}'
+
+# the relevant filters must be named <<env>>-dcos-container-pipeline.conf and must be placed in
+# subfolders logstash/pipeline_filters 
+
+- hosts: "logstash{{ env }}"
+  remote_user: azureuser
+  become: yes
+  become_method: sudo
+  tasks:
+  - name: Copy new pipeline filter file
+    copy:
+      src: "logstash/pipeline_filters/{{ env }}-dcos-container-pipeline.conf"
+      dest: /etc/logstash/conf.d/dcos-container-pipeline.conf
+      force: yes
+
+  - name: Check that the correct version of the pipeline filter has been uploaded
+    register: shl_head_pipeline
+    shell: head -n3 /etc/logstash/conf.d/dcos-container-pipeline.conf
+
+  - debug:
+      var: shl_head_pipeline.stdout_lines
+
+  - name: Copy patterns
+    copy:
+      src: "{{ item }}"
+      dest: /etc/logstash/patterns/
+    with_fileglob:
+      - logstash/patterns/*
+
+  - name: Check to ensure patterns exist
+    register: shl_ls_patterns
+    shell: ls /etc/logstash/patterns
+    
+  - debug:
+      var: shl_ls_patterns.stdout_lines
+
+  - name: Create old log file, with relevant permissions
+    file:
+      path: /var/log/logstash/logstash-old.log
+      state: touch
+      mode: 0777
+
+  - name: Concatenate logs
+    shell: cat logstash-plain.log >> logstash-old.log
+    args:
+      chdir: /var/log/logstash
+
+  - name: Delete current log file
+    file:
+      state: absent
+      path: /var/log/logstash/logstash-plain.log
+
+  - name: Create new log file
+    file:
+      path: /var/log/logstash/logstash-plain.log
+      state: touch
+      mode: 0666
+
+  - name: Change charset
+    shell: iconv -f ascii -t utf-8 /var/log/logstash/logstash-plain.log -o /var/log/logstash/logstash-plain.log
+    register: iconv_output
+
+  - debug:
+      var: iconv_output
+
+  - name: Restart logstash service
+    service:
+      name: logstash
+      state: restarted
+
+  - name: Wait for Logstash API Endpoint to be running
+    wait_for:
+      port: 9600
+      delay: 60
+      timeout: 300
+
+  - name: Read output of log file for info
+    register: shl_tail_logstash
+    shell: tail -n 25 /var/log/logstash/logstash-plain.log
+
+  - debug:
+      var: shl_tail_logstash.stdout_lines
+
