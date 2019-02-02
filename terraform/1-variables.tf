@@ -1,3 +1,10 @@
+# @title:   VM cluster creation script
+# @file:    Variables
+# @tech:    Terraform
+# @author:  Duncan Wraight
+# @version: 0.4
+# @url:     https://www.linkedin.com/in/duncanwraight
+
 # Specify Azure CLI as the authentication method
 provider "azurerm" {
   version = "=1.21.0"

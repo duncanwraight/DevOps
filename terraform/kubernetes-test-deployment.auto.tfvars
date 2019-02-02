@@ -1,3 +1,10 @@
+# @title:   VM cluster creation script
+# @file:    Variable population
+# @tech:    Terraform
+# @author:  Duncan Wraight
+# @version: 0.4
+# @url:     https://www.linkedin.com/in/duncanwraight
+
 type = [ "Master", "Slave" ]
 environment = "DT"
 purpose = "Testing"

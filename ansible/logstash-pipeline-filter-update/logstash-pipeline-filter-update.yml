@@ -1,3 +1,8 @@
+# @title:   Logstash pipeline filter replacement/update 
+# @tech:    Ansible Playbook
+# @author:  Duncan Wraight
+# @version: 0.6
+# @url:     https://www.linkedin.com/in/duncanwraight
 ---
 # to run this playbook, use the following command (dt/ppt/pr)
 ### ansible-playbook logstash-filter-update.yml --extra-vars '{"env":"dt"}'

@@ -1,3 +1,10 @@
+# @title:   VM cluster creation script
+# @file:    Resource creation
+# @tech:    Terraform
+# @author:  Duncan Wraight
+# @version: 0.4
+# @url:     https://www.linkedin.com/in/duncanwraight
+
 resource "azurerm_resource_group" "main" {
   name      = "${local.prefix_group}-RG"  
   location  = "ukwest"
