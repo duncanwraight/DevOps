@@ -1,0 +1,176 @@
+---
+- hosts: cluster 
+  become: yes
+  become_method: sudo
+  tasks:
+
+    - name: Install Docker
+      apt:
+        name: "{{ packages }}"
+      vars:
+        packages:
+         - docker.io
+         - apt-transport-https
+         - openssh-server
+
+    - name: Add apt key for Kubernetes
+      apt_key:
+        url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+        state: present
+    
+    - name: Add kubernetes repository
+      apt_repository:
+        repo: deb http://apt.kubernetes.io/ kubernetes-xenial main
+        state: present
+
+    - name: Install kubernetes components - kubelet, kubeadm, kubernetes-cni
+      apt:
+        name: "{{ packages }}"
+      vars:
+        packages:
+         - kubelet
+         - kubeadm
+         - kubernetes-cni
+
+    - name: Test Kubernetes installation
+      shell: kubeadm version
+      register: output
+
+    - debug: 
+        var: output.stdout_lines
+
+- hosts: master
+  become: yes
+  become_method: sudo
+  vars:
+    yml_snippet_files: ['creation', 'rbac']
+  tasks:
+
+    - block:
+
+      - name: Initialise the Kubernetes deployment
+        shell: "kubeadm init --pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address={{ ansible_default_ipv4.address }}"
+        register: output
+
+      - debug:
+          var: output.stdout_lines
+
+      - name: Create separate kubernetes user
+        user:
+          name: kubernetes
+          group: sudo
+          create_home: True
+          shell: /bin/bash
+          password: "{{ kuserpassword | password_hash('sha512', kuserpassword_salt) }}"
+
+      - name: Store new user $HOME path in variable
+        become_user: kubernetes
+        shell: echo $HOME
+        register: kuserhome
+
+      - name: Create .kube directory
+        file:
+          path: "{{ kuserhome.stdout }}/.kube"
+          state: directory
+
+      - name: Copy Kubernetes admin config
+        shell: "cp /etc/kubernetes/admin.conf {{ kuserhome.stdout }}/.kube/config"
+
+      - name: Chown config file
+        file: 
+          path: "{{ kuserhome.stdout }}/.kube/config"
+          owner: kubernetes
+          group: sudo
+
+      - name: Set KUBECONFIG environment variable
+        shell: "export KUBECONFIG={{ kuserhome.stdout }}/.kube/config"
+
+      tags: cluster_creation
+
+    - block:
+
+       - name: Append KUBECONFIG environment variable to .bashrc
+         lineinfile:
+           path: ~/.bashrc
+           line: "KUBECONFIG={{ kuserhome.stdout }}/.kube/config"
+           insertbefore: EOF
+
+       - name: Add Flannel/Flannel RBAC plugins
+         shell: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/{{ item }}"
+         with_items:
+           - kube-flannel.yml
+           - k8s-manifests/kube-flannel-rbac.yml
+
+       - name: Test the Kubernetes deployment
+         shell: kubectl get all --namespace=kube-system
+         register: output
+
+       - debug:
+           var: output.stdout_lines
+
+       - name: Add Dashboard UI plugin
+         shell: kubectl create -f https://raw.githubusercontent.com/kubernetes/dashboard/master/aio/deploy/recommended/kubernetes-dashboard.yaml
+
+       - name: Create YML snippets folder
+         file:
+           path: "{{ kuserhome.stdout }}/yml-snippets"
+           state: directory
+
+       - name: Copy user creation/permission YML snippets
+         copy:
+           src: "k8s-yml-snippets/admin-user-{{ item }}.yml"
+           dest: "{{ kuserhome.stdout }}/yml-snippets/"
+         with_items:
+          - "{{ yml_snippet_files }}"
+
+       - name: Create admin-user service account, and give it appropriate permissions for UI access
+         shell: "kubectl apply -f admin-user-{{ item }}.yml"
+         args:
+           chdir: "{{ kuserhome.stdout }}/yml-snippets/"
+         with_items:
+          - "{{ yml_snippet_files }}"
+
+       - name: Get admin-user token for logging into Web UI
+         shell: "kubectl -n kube-system describe secret $(kubectl -n kube-system get secret | awk '/^admin-user-/{print $1}') | awk '$1==\"token:\"{print $2}'"
+         register: output
+
+       - debug:
+           msg: "Use the following token to access the Kubernetes web UI by running \"kubectl proxy\" command, then navigating to \"localhost:8001\": {{ output.stdout }}"
+
+      become_user: kubernetes
+      tags: cluster_creation
+
+    - block:
+
+       - name: Generate join token for Slave node
+         shell: kubeadm token generate
+         register: kubeadm_token
+
+       - name: Generate join string for Slave node
+         shell: "kubeadm token create {{ kubeadm_token.stdout }} --print-join-command"
+         register: kubeadm_join_string
+
+       - debug:
+           var: kubeadm_join_string.stdout
+
+      tags: cluster_token_creation
+      
+- hosts: slave
+  become: yes
+  become_method: sudo
+  tasks:
+
+    - block:
+
+       - name: Join Slave node to cluster
+         shell: "{{ hostvars[groups['master'][0]]['kubeadm_join_string'].stdout }}"
+         register: output
+
+       - fail:
+           msg: "Slave node unable to join cluster"
+         when: "'This node has joined the cluster' not in output.stdout" 
+
+       - debug:
+           var: output.stdout_lines
+
+      tags: node_join_cluster
