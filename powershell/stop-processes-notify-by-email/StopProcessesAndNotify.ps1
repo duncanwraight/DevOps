@@ -1,5 +1,13 @@
+# @title:   Stop specific process and notify by e-mail
+# @purpose: Looks for open/active processes with a specific name, and kills all instances.
+#           If any instances are found, an e-mail is sent to Digital Support Teams channel to notify team of a problem.
+# @tech:    PowerShell
+# @author:  Duncan Wraight
+# @version: 0.1
+# @url:     https://www.linkedin.com/in/duncanwraight
+
 # Variables
-$TeamsChannel = '5ff3973e.homegroup.org.uk@emea.teams.ms'
+$TeamsChannel = 'xxx@emea.teams.ms'
 $Now = Get-Date -format "dd-MMM-yyyy HH:mm"
  
 # E-mail specific variables
