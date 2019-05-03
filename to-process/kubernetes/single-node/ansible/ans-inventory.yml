@@ -1,0 +1,17 @@
+[all:vars]
+ansible_user=azureuser
+ansible_ssh_pass=Password1!
+
+[cluster:children]
+master
+slave
+
+[master]
+51.137.150.xxx
+#51.137.150.xxx
+#51.137.150.xxx
+
+[slave]
+51.137.150.xxx
+51.137.150.xxx
+51.137.150.xxx

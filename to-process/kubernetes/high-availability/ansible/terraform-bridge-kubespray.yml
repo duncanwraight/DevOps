@@ -1,0 +1,32 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  become: yes
+  vars:
+    KUBESPRAY_PATH: "{{ ROOT_PATH }}/kubespray-2.8.3"
+    KUBESPRAY_INVENTORY: "{{ KUBESPRAY_PATH }}/inventory/mycluster"
+  environment:
+    IPS: "{{ VM_PUBLIC_IPs }}"
+
+  tasks:
+
+    - name: Add IPs to known hosts using ssh-keyscan
+      shell: "bash ssh-keyscan-ips.sh {{ VM_PUBLIC_IPs }}"
+      args:
+        chdir: "{{ ROOT_PATH }}"
+    
+    - name: Remove mycluster directory
+      file:
+        state: absent
+        path: "{{ KUBESPRAY_INVENTORY }}"
+
+    - name: Copy sample cluster
+      synchronize:
+        src: "{{ KUBESPRAY_PATH }}/inventory/sample"
+        dest: "{{ KUBESPRAY_INVENTORY }}"
+      delegate_to: "{{ inventory_hostname }}"
+
+    - name: Run inventory builder
+      shell: CONFIG_FILE=inventory/mycluster/hosts.ini python3 contrib/inventory_builder/inventory.py
+      args:
+        chdir: "{{ KUBESPRAY_PATH }}"
