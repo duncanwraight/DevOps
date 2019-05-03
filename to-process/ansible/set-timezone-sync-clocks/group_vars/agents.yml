@@ -1,0 +1,1 @@
+ansible_ssh_common_args: '-o ProxyCommand="ssh -o ''ForwardAgent yes'' azureuser@hostname.azure.com ''ssh-add && nc %h %p''"'

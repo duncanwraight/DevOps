@@ -1,0 +1,38 @@
+---
+- hosts: all
+  become: yes
+  become_method: sudo
+  vars:
+    local_device_time: "{{ '+%s' | strftime }}"
+  tasks:
+    
+    # export timezone
+    - name: Set timezone
+      timezone:
+        hwclock: local
+        name: Europe/London
+
+    # install ntpdate
+    - name: Install ntpdate
+      apt:
+        name: ntpdate
+
+    # sync time
+    - name: Sync time
+      shell: ntpdate uk.pool.ntp.org
+
+    # sync hwclock
+    - name: Sync hwclock
+      shell: hwclock -w
+
+    - name: ansible_date_time.date
+      debug:
+        msg: "{{ ansible_date_time.epoch }} "
+
+    - name: local_device_time var
+      debug:
+        msg: "{{ local_device_time }}"
+
+    - fail:
+        msg: "Clock is incorrect, even after changes"
+      when: (ansible_date_time.epoch|int - local_device_time|int) > 3

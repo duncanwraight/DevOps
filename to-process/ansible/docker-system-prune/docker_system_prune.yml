@@ -1,0 +1,28 @@
+---
+- hosts: ppt-dcos-master
+  become: yes
+  become_method: sudo
+  tasks:
+
+    - name: Copy scripts from Docker container to Gitlab Runner remote host
+      copy:
+        src: "/builds/hg-devops/scheduled/dcos-docker-prune/{{ item }}"
+        dest: /home/username/scripts
+        mode: 0777
+      with_items:
+        - run-docker-prune.sh
+        - docker-prune.sh
+
+    - name: Execute script
+      script: run-docker-prune.sh
+      args:
+        chdir: /home/username/scripts
+      become_user: username
+      no_log: True
+      register: script_run
+      failed_when: script_run.stderr_lines|length > 1
+
+    - name: Script output
+      debug:
+        var: script_run.stdout_lines
+

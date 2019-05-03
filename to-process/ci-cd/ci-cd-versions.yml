@@ -1,0 +1,28 @@
+---
+- hosts: "all"
+  any_errors_fatal: true
+  tasks:
+    - name: Generate random number for port
+      set_fact:
+        SERVICE_PORT: "{{ 11999 | random(start=10001) }}"
+
+    - name: Copy JSON content into file
+      copy:
+        content: '{"instances": 1, "container": {"docker": { "image": "acr.azurecr.io/{{ SERVICE_NAME }}:{{ VERSION }}", "network": "BRIDGE", "portMappings": [{ "containerPort": {{ CONTAINER_PORT }}, "hostPort": 0, "servicePort": {{ SERVICE_PORT }}, "protocol": "tcp", "name": "default", "labels": { "VIP_0": "/project/{{ ENVIRONMENT }}/{{ SERVICE_NAME }}:{{ CONTAINER_PORT }}" } } ], "privileged": false, "forcePullImage": true } } }'
+        dest: dcos-config.json
+
+    - name: Run DCOS CLI
+      shell: "cat dcos-config.json | dcos marathon app update /project/{{ ENVIRONMENT }}/{{ SERVICE_NAME }}"
+      register: dcos_cli_output
+      ignore_errors: yes
+
+    - fail:
+        msg: "{{ dcos_cli_output.stderr_lines }}"
+      when: "'Created deployment' not in dcos_cli_output.stdout"
+
+    - debug: var=dcos_cli_output.stdout_lines
+
+    - name: Remove JSON file
+      file:
+        path: dcos-config.json
+        state: absent
