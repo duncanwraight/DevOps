@@ -1,0 +1,150 @@
+#!/bin/bash
+
+# Spin up a one-time, one-shot Docker container to the run the Smart CI script
+#   uses "$@" to pass parameters from bash, e.g. "bin/generate-ci -s selenium -s unit"
+
+
+# Colour code compatibility check
+# Check if stdout is a terminal...
+if test -t 1; then
+
+    # See if it supports colours...
+    ncolors=$(tput colors)
+
+    if test -n "$ncolors" && test $ncolors -ge 8; then
+        COL_BLD="$(tput bold)"
+        COL_RES="$(tput sgr0)"
+        COL_BLU="$(tput setaf 4)"
+        COL_GRN="$(tput setaf 2)"
+        COL_MAG="$(tput setaf 5)"
+    fi
+fi
+
+
+# Usage
+if [[ "$1" == '--help' || "$1" == 'help' ]]; then
+    echo
+    echo -e "Usage: \e[34mbin/generate-ci [OPTIONS]\e[0m"
+    echo -e "\tPass test stages using '-s stage', e.g. '-s unit'. Multiple stages can be passed, e.g. '-s unit -s selenium'"
+    echo -e "\tTo disable Smart CI, pass '-f'"
+    echo "Pass no parameters to enable Smart CI but run all test types."
+    echo
+    echo "Examples:"
+    echo -e "\t\e[34mbin/generate-ci\e[0m\t\t\t\t\t<-- Would run all tests selected by Smart CI"
+    echo -e "\t\e[34mbin/generate-ci -s unit -s selenium -f\e[0m\t\t<-- Would disable Smart CI, running all Selenium and Unit tests"
+    echo -e "\t\e[34mbin/generate-ci -s selenium\e[0m\t\t\t<-- Would run only Selenium tests, and only tests selected by Smart CI"
+    exit 0
+fi
+
+
+# Arrays
+PARAMS=()
+SKIPPED=()
+
+
+# Functions
+function output() {
+    if [[ "$1" == 'OK' ]]; then
+        colour=$COL_GRN
+    elif [[ "$1" == 'WRN' ]]; then
+        colour=$COL_MAG
+    elif [[ "$1" == 'GEN' ]]; then
+        colour=$COL_BLU
+    fi
+
+    echo -e "${colour}${2}${COL_RES}"
+}
+
+function addparam() {
+    if [[ " ${PARAMS[@]} " =~ " $1 " || " ${SKIPPED[@]} " =~ " $1 " ]]; then
+        output 'WRN' "Parameter '${1}' already passed; skipping"
+    else
+        if [[ "$arg" == '-f' ]]; then
+            echo "You have passed the '-f' parameter indicating that you want to disable Smart CI. This will mean all *tests* are included in your pipeline."
+            echo "Do you wish to continue? (Y/n)"
+            read ans
+            if [[ "$ans" -ne "Y" && "$ans" -ne "y" ]]; then
+                output 'WRN' "Skipping parameter: ${1}"
+                SKIPPED+=($1)
+                return
+            fi
+        fi
+
+        output 'OK' "Adding parameter: ${1}"
+        PARAMS+=($1)
+    fi
+}
+
+
+# Intro
+output 'GEN' "\n=== Generate CI ===\n"
+
+
+# Logic
+for i in {1..30}; do
+    arg=${!i}
+    if [[ -n "$arg" ]]; then
+        if [[ "$arg" == '-f' ]]; then
+            addparam '-f'
+        elif [[ "$arg" == '-s' ]]; then
+            n=$((i+1))
+            if [[ -n ${!n} && ${!n} != "-"* ]]; then
+                param="${arg} ${!n}"
+                addparam "$param"
+            fi
+        fi
+    fi
+done
+
+if [[ "${#PARAMS[@]}" -eq 0 ]]; then
+    echo "No arguments have been passed to CI Generator."
+    echo "This will mean all *stages* will be included in your pipeline, but Smart CI will still take effect (pass '-f' to disable)."
+    echo "Do you wish to continue? (Y/n)"
+    read ans
+    if [[ "$ans" != "Y" && "$ans" != "y" ]]; then
+        output 'WRN' "Exiting..."
+        exit 1
+    fi
+fi
+
+
+# Run
+#TODO Handle Docker container failures
+output 'GEN' "\nGenerating CI file...\n"
+
+# Remove comment to see output
+# echo docker run --rm -v $(pwd):/pz smart-ci:latest ${PARAMS[*]}
+
+# This is where the magic happens lads
+docker run --rm -v $(pwd):/pz registry/smart-ci:1.0.2 ${PARAMS[*]}
+
+# Check output
+output 'GEN' "\nGenerated. Please check the following stages to ensure they're correct before committing: \n(For support, @here in #ci)\n"
+
+# Grep from the `stages` list
+# sed -n '/^stages:/,/^-/p;/^\./q' .gitlab-ci.yml | grep -v 'base_template'
+
+STAGES=()
+IGNORE=(
+    'AWS'
+    'Push'
+    'Wait'
+    'Build'
+    'Deploy'
+)
+
+while read -r line; do
+    if [[ ! " ${STAGES[@]} " =~ " $line " ]]; then
+        STAGES+=($line)
+        if [[ ! " ${IGNORE[@]} " =~ " $line " ]]; then
+            output 'OK' "\t- ${line}"
+        else
+            echo -e "\t- ${line}" 
+        fi
+    fi
+done < <(sed -n -e 's/stage: //p' $(pwd)/.gitlab-ci.yml)
+
+if [[ "${#STAGES[@]}" -eq 0 ]]; then
+    output 'WRN' "Something has gone wrong - your .gitlab-ci.yml file has no tests. Please investigate before considering committing this code."
+    exit 1
+fi

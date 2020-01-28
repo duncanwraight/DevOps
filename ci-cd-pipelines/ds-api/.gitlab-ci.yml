@@ -1,0 +1,179 @@
+variables:
+  DEBUG: 0
+  DSAPI_VERSION_TAG: $CI_COMMIT_TAG
+  COMPOSE_PROJECT_NAME: production_models_${CI_JOB_ID}
+  COMPOSE_VERSION: 1.25.1
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
+
+
+stages:
+  - analysis
+  - tests
+  - pages
+  - build
+  - publish
+  - deploy:host-1
+  - deploy:host-2
+
+
+#-- analysis
+
+.simple_test_template: &simple_test_template
+  stage: analysis
+  image: python:3.7
+  allow_failure: true
+  before_script:
+    - if [[ -z "$CI_COMMIT_TAG" ]]; then export DSAPI_VERSION_TAG=dev; fi
+    - python --version
+    - pip install -e .[test]
+
+flake8:
+  <<: *simple_test_template
+  script:
+    - flake8 --max-line-length=120 src/api --exclude='*/migrations/*, */tests/*, __init__.py'
+
+pylint:
+  <<: *simple_test_template
+  script:
+    - pylint -d C0301 src/api --ignore=tests,migrations
+
+
+api-tests:
+  stage: tests
+  services:
+    - docker:dind
+  image: docker
+  allow_failure: true
+
+  before_script:
+    - apk add --no-cache alpine-sdk libffi-dev openssl-dev python2-dev py-pip
+    - pip install docker-compose
+    - docker-compose build --build-arg DSAPI_VERSION_TAG=$CI_COMMIT_TAG app
+    - docker-compose up -d
+    - docker-compose run --no-deps app sh -c "/code/wait.sh app:8000 -t 90"
+
+  script:
+    - docker-compose exec -T app python manage.py migrate
+    - docker-compose exec -T app python manage.py test -v 2
+
+  after_script:
+    - mkdir -p .logs
+    - docker-compose logs > .logs/docker.log
+
+  artifacts:
+    name: "logs"
+    paths:
+      - .logs
+    when: on_failure
+    expire_in: 1 day
+
+
+# -- pages
+
+pages:
+  stage: pages
+  image: node
+  script:
+    - bash build-docs.sh
+  artifacts:
+    paths:
+      - public
+
+
+# -- build
+
+build:
+  stage: build
+  image: python:3.7
+
+  script:
+    - pip install .
+    - python setup.py sdist bdist_wheel
+    - ls src/
+
+  artifacts:
+    paths:
+      - ./dist
+
+
+# -- publish
+
+publish:
+  stage: publish
+
+  script:
+    - /opt/ci/scripts/deploy-whl.sh pz-dsapi dist/*.whl
+
+  dependencies:
+    - build
+
+  tags:
+    - deploy
+
+  only:
+    - tags
+
+
+#-- deploy
+
+.deploy_template: &deploy_template
+  image: alpine
+
+  script:
+    - export DEBUG=0
+    - export SSH_CONFIG_FILE=/root/.ssh/config
+    - export SSH_KEY_FILE=/root/.ssh/deploy_id_rsa
+    - export SOURCE_DIR=/opt/data-science
+    - export RUN_MIGRATIONS=0
+    - export SERVICE_NAME=data_science_api.service
+
+    - apk add bash
+    - bash
+    - apk add openssh-client
+    - mkdir -p /root/.ssh
+    - echo "-----BEGIN RSA PRIVATE KEY-----" > $SSH_KEY_FILE
+    - echo "$DEPLOY_PRIVATE_KEY" | sed "s/ /\n/g" >> $SSH_KEY_FILE
+    - echo "-----END RSA PRIVATE KEY-----" >> $SSH_KEY_FILE
+    - chmod 0600 $SSH_KEY_FILE
+    - if [ "$DEBUG" -eq "1" ]; then cat $SSH_KEY_FILE; fi
+    - echo 'StrictHostKeyChecking no' > $SSH_CONFIG_FILE
+    - echo 'UserKnownHostsFile=/dev/null' >> $SSH_CONFIG_FILE
+    - echo -e "\nHost deploy_host\n\tHostName $DEPLOY_HOST\n\tIdentityFile $SSH_KEY_FILE\n\tUser root" >> $SSH_CONFIG_FILE
+    - if [ "$DEBUG" -eq "1" ]; then cat $SSH_CONFIG_FILE; fi
+
+      # bring the host down by touching the keepalived/down file
+    - ssh deploy_host touch /etc/keepalived/down
+      # make sure the virtual IP has been removed from the NIC
+    - ssh deploy_host "while ip addr | grep -o 'inet 10.0.0.1[0-9]'; do sleep 1; done"
+
+    - ssh deploy_host mkdir -p $SOURCE_DIR/wheels/$CI_PIPELINE_ID/
+    - scp dist/*.whl deploy_host:$SOURCE_DIR/wheels/$CI_PIPELINE_ID/
+    - ssh deploy_host $SOURCE_DIR/env/bin/pip install --upgrade $SOURCE_DIR/wheels/$CI_PIPELINE_ID/"*"
+
+    - if [ "$RUN_MIGRATIONS" -eq "1" ]; then ssh deploy_host $SOURCE_DIR/env/bin/manage.py migrate --noinput; fi
+    - ssh deploy_host systemctl restart $SERVICE_NAME
+    
+      # bring the host back up
+    - ssh deploy_host rm /etc/keepalived/down
+    - ssh deploy_host "until ip addr | grep -o 'inet 10.0.0.1[0-9]'; do sleep 1; done"
+
+  dependencies:
+    - build
+
+  only:
+    - tags
+
+deploy:host-1:
+  <<: *deploy_template
+  stage: deploy:host-1
+
+  before_script:
+    - export DEPLOY_HOST=host
+
+deploy:host-2:
+  <<: *deploy_template
+  stage: deploy:host-2
+
+  before_script:
+    - export DEPLOY_HOST=host
