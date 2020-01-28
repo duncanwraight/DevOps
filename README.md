@@ -10,5 +10,5 @@ https://www.linkedin.com/in/duncanwraight/
 
 ## Questions or support
 
-Due to a young family, I don't have much time available to support the use of these scripts.
-However, if you're desperate, please contact me on LinkedIn and I'll get back to you in due course.
+Due to having a young family, I don't have much time available to support the use of these scripts.
+However, if you're in real need, please contact me on LinkedIn and I'll get back to you in due course.
