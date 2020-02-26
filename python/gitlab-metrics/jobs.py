@@ -172,7 +172,7 @@ if args.output:
 		formatted_jobs = []
 
 	if "google-sheets" in args.output:
-		SHEETS = GoogleSheetsWrapper('./auth', '1pp1SMLRsJ1Yn9SyhNPjMlAgs2Lr-gAvIaej3juWV7ws')
+		SHEETS = GoogleSheetsWrapper('./auth', 'xxx')
 		
 		for job in jobs:
 			if job.runner is not None:
